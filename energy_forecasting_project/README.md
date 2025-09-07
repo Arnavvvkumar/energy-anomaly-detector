@@ -1,23 +1,30 @@
 # Energy Forecasting with Machine Learning
 
-A comprehensive energy consumption forecasting system using advanced machine learning techniques, optimized for GPU acceleration with RTX 4070.
+A comprehensive energy consumption forecasting system that demonstrates the difference between **fake results** (due to data leakage) and **honest results** (realistic forecasting performance).
+
+## 🚨 Important: Data Leakage Analysis
+
+This project originally claimed **100% accuracy**, which is impossible in real forecasting. The analysis revealed severe data leakage issues. This repository now contains the **honest evaluation** showing what realistic energy forecasting performance actually looks like.
 
 ## 🎯 Project Overview
 
-This project implements a complete energy forecasting pipeline that processes household power consumption data and predicts future energy usage with high accuracy using multiple ML algorithms.
+This project demonstrates:
+1. **Why 100% accuracy is impossible** in energy forecasting
+2. **How data leakage occurs** in machine learning projects
+3. **What realistic forecasting performance** looks like
+4. **Proper methodology** for honest energy forecasting
 
-## 📊 Performance Results
+## 📊 Honest Performance Results
 
-| Model | Test MAE | Test RMSE | Test R² | Improvement |
-|-------|----------|-----------|---------|-------------|
-| **Linear Regression** | **0.0000** | **0.0000** | **1.0000** | **100%** |
-| Decision Tree | 0.0006 | 0.0007 | 1.0000 | 99.8% |
-| XGBoost | 0.0030 | 0.0044 | 1.0000 | 99.0% |
+| Model | Test MAE | Test RMSE | Test R² | Test MAPE |
+|-------|----------|-----------|---------|-----------|
+| **Linear Regression** | **0.7354 kW** | **0.9903 kW** | **0.2160** | **82.61%** |
+| **Random Forest** | **0.6568 kW** | **0.9460 kW** | **0.2846** | **60.18%** |
 
-**Previous Performance (Before Optimization):**
-- XGBoost MAE: 0.2873 (28.73% error)
-- XGBoost RMSE: 0.4043 (40.43% error)
-- XGBoost R²: 0.6125 (61.25% variance explained)
+**These are REALISTIC results using ONLY time features (no data leakage):**
+- MAE: 0.66-0.74 kW (realistic error)
+- R²: 0.22-0.28 (explains 22-28% of variance)
+- MAPE: 60-83% (realistic error rate)
 
 ## 🧮 Mathematical Foundations
 
