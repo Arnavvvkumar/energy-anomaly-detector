@@ -11,7 +11,8 @@ def load_data(file_path: str) -> pd.DataFrame:
 
     df = pd.read_csv(file_path, sep=';', names=column_names, header=0, na_values=['?'], low_memory=False)
     
-    df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
+    # Dataset dates are in day-first format (dd/mm/yyyy).
+    df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], dayfirst=True)
     df.set_index('DateTime', inplace=True)
     df.drop(['Date', 'Time'], axis=1, inplace=True)
 
@@ -31,9 +32,8 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     
     df_clean = df_clean.dropna(how='all')
 
-    df_clean = df_clean.fillna(method='ffill')
-    
-    df_clean = df_clean.fillna(method='bfill')
+    df_clean = df_clean.ffill()
+    df_clean = df_clean.bfill()
     
     numeric_columns = ['Global_active_power', 'Global_reactive_power', 'Voltage', 'Global_intensity', 'Sub_metering_1', 'Sub_metering_2', 'Sub_metering_3']
     
@@ -65,8 +65,15 @@ def resample_data(df: pd.DataFrame, frequency: str = 'H') -> pd.DataFrame:
     return df_resampled
 
 
-def create_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Create comprehensive feature set with lag, rolling, and interaction features."""
+def create_features(df: pd.DataFrame, include_target_history: bool = False) -> pd.DataFrame:
+    """
+    Create feature set for forecasting.
+
+    Args:
+        df: Input dataframe with power measurements.
+        include_target_history: When True, include lag/rolling/diff features derived from
+            `Global_active_power`. Keep this False for a strict no-leakage baseline.
+    """
     df_features = df.copy()
     
     # Time-based features
@@ -92,38 +99,40 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     df_features['is_night'] = ((df_features['hour'] >= 22) | (df_features['hour'] <= 5)).astype(int)
     df_features['is_workday'] = ((df_features['day_of_week'] >= 0) & (df_features['day_of_week'] <= 4)).astype(int)
     
-    # Enhanced lag features (more comprehensive)
-    for lag in [1, 2, 3, 6, 12, 24, 48, 72, 168]:  # 1h, 2h, 3h, 6h, 12h, 1d, 2d, 3d, 1w
-        df_features[f'global_active_power_lag{lag}'] = df_features['Global_active_power'].shift(lag)
-        df_features[f'global_reactive_power_lag{lag}'] = df_features['Global_reactive_power'].shift(lag)
-        df_features[f'voltage_lag{lag}'] = df_features['Voltage'].shift(lag)
+    # History features are optional. Keep disabled by default for honest forecasting.
+    if include_target_history:
+        for lag in [1, 2, 3, 6, 12, 24, 48, 72, 168]:  # 1h, 2h, 3h, 6h, 12h, 1d, 2d, 3d, 1w
+            df_features[f'global_active_power_lag{lag}'] = df_features['Global_active_power'].shift(lag)
+            df_features[f'global_reactive_power_lag{lag}'] = df_features['Global_reactive_power'].shift(lag)
+            df_features[f'voltage_lag{lag}'] = df_features['Voltage'].shift(lag)
     
-    # Rolling statistics (multiple windows)
-    for window in [3, 6, 12, 24, 48, 168]:  # 3h, 6h, 12h, 1d, 2d, 1w
-        df_features[f'global_active_power_rolling_mean_{window}h'] = df_features['Global_active_power'].rolling(window=window).mean()
-        df_features[f'global_active_power_rolling_std_{window}h'] = df_features['Global_active_power'].rolling(window=window).std()
-        df_features[f'global_active_power_rolling_min_{window}h'] = df_features['Global_active_power'].rolling(window=window).min()
-        df_features[f'global_active_power_rolling_max_{window}h'] = df_features['Global_active_power'].rolling(window=window).max()
+    if include_target_history:
+        for window in [3, 6, 12, 24, 48, 168]:  # 3h, 6h, 12h, 1d, 2d, 1w
+            df_features[f'global_active_power_rolling_mean_{window}h'] = df_features['Global_active_power'].rolling(window=window).mean()
+            df_features[f'global_active_power_rolling_std_{window}h'] = df_features['Global_active_power'].rolling(window=window).std()
+            df_features[f'global_active_power_rolling_min_{window}h'] = df_features['Global_active_power'].rolling(window=window).min()
+            df_features[f'global_active_power_rolling_max_{window}h'] = df_features['Global_active_power'].rolling(window=window).max()
     
-    # Difference features (rate of change)
-    df_features['global_active_power_diff_1h'] = df_features['Global_active_power'].diff(1)
-    df_features['global_active_power_diff_24h'] = df_features['Global_active_power'].diff(24)
-    df_features['global_active_power_diff_168h'] = df_features['Global_active_power'].diff(168)
+    if include_target_history:
+        df_features['global_active_power_diff_1h'] = df_features['Global_active_power'].diff(1)
+        df_features['global_active_power_diff_24h'] = df_features['Global_active_power'].diff(24)
+        df_features['global_active_power_diff_168h'] = df_features['Global_active_power'].diff(168)
     
-    # Ratio features
-    df_features['power_ratio_reactive_active'] = df_features['Global_reactive_power'] / (df_features['Global_active_power'] + 1e-8)
-    df_features['power_ratio_sub1_active'] = df_features['Sub_metering_1'] / (df_features['Global_active_power'] + 1e-8)
-    df_features['power_ratio_sub2_active'] = df_features['Sub_metering_2'] / (df_features['Global_active_power'] + 1e-8)
-    df_features['power_ratio_sub3_active'] = df_features['Sub_metering_3'] / (df_features['Global_active_power'] + 1e-8)
+    if include_target_history:
+        df_features['power_ratio_reactive_active'] = df_features['Global_reactive_power'] / (df_features['Global_active_power'] + 1e-8)
+        df_features['power_ratio_sub1_active'] = df_features['Sub_metering_1'] / (df_features['Global_active_power'] + 1e-8)
+        df_features['power_ratio_sub2_active'] = df_features['Sub_metering_2'] / (df_features['Global_active_power'] + 1e-8)
+        df_features['power_ratio_sub3_active'] = df_features['Sub_metering_3'] / (df_features['Global_active_power'] + 1e-8)
     
     # Interaction features
     df_features['hour_day_interaction'] = df_features['hour'] * df_features['day_of_week']
     df_features['hour_month_interaction'] = df_features['hour'] * df_features['month']
-    df_features['voltage_power_interaction'] = df_features['Voltage'] * df_features['Global_active_power']
+    if include_target_history:
+        df_features['voltage_power_interaction'] = df_features['Voltage'] * df_features['Global_active_power']
     
-    # Polynomial features for key variables
-    df_features['global_active_power_squared'] = df_features['Global_active_power'] ** 2
-    df_features['voltage_squared'] = df_features['Voltage'] ** 2
+    if include_target_history:
+        df_features['global_active_power_squared'] = df_features['Global_active_power'] ** 2
+        df_features['voltage_squared'] = df_features['Voltage'] ** 2
     
     df_features = df_features.dropna()
     
