@@ -24,11 +24,10 @@ def final_honest_evaluation():
     print("This shows what REAL forecasting looks like")
     print("=" * 50)
     
-    # Load and preprocess data (smaller sample for speed)
+    # Load and preprocess full dataset
     print("\n1. Loading data...")
     df = pd.read_csv('data/household_power_consumption.txt', 
                      sep=';', 
-                     nrows=50000,  # Smaller sample
                      na_values=['?'], 
                      low_memory=False)
     
@@ -86,7 +85,7 @@ def final_honest_evaluation():
     df_clean['is_peak_hour'] = ((df_clean['hour'] >= 6) & (df_clean['hour'] <= 9) | 
                                (df_clean['hour'] >= 18) & (df_clean['hour'] <= 21)).astype(int)
     df_clean['is_night'] = ((df_clean['hour'] >= 22) | (df_clean['hour'] <= 5)).astype(int)
-    df_clean['is_workday'] = ((df_clean['hour'] >= 0) & (df_clean['hour'] <= 4)).astype(int)
+    df_clean['is_workday'] = (df_clean['day_of_week'] <= 4).astype(int)
     df_clean['is_morning'] = ((df_clean['hour'] >= 6) & (df_clean['hour'] <= 11)).astype(int)
     df_clean['is_afternoon'] = ((df_clean['hour'] >= 12) & (df_clean['hour'] <= 17)).astype(int)
     df_clean['is_evening'] = ((df_clean['hour'] >= 18) & (df_clean['hour'] <= 21)).astype(int)
@@ -145,7 +144,8 @@ def final_honest_evaluation():
         test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
         train_r2 = r2_score(y_train, y_train_pred)
         test_r2 = r2_score(y_test, y_test_pred)
-        test_mape = np.mean(np.abs((y_test - y_test_pred) / y_test)) * 100
+        safe_denominator = np.where(np.abs(y_test) < 1e-8, np.nan, y_test)
+        test_mape = np.nanmean(np.abs((y_test - y_test_pred) / safe_denominator)) * 100
         
         results[name] = {
             'train_mae': train_mae,

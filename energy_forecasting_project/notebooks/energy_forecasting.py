@@ -37,7 +37,8 @@ def main():
     df = load_data(data_path)
     df_clean = clean_data(df)
     df_resampled = resample_data(df_clean, 'H')
-    df_features = create_features(df_resampled)
+    # Keep strict no-leakage configuration by default for realistic performance.
+    df_features = create_features(df_resampled, include_target_history=False)
     
     print(f"Final dataset shape: {df_features.shape}")
     
@@ -87,8 +88,14 @@ def main():
     X_test_flat, y_test = prepare_training_data_flat(test_data, target_col)
     
     # Feature selection to reduce overfitting
-    X_train_selected, X_test_selected, feature_selector = select_features(X_train_flat, y_train, X_test_flat, k=50)
-    X_val_selected, _, _ = select_features(X_val_flat, y_val, X_val_flat, k=50)
+    n_features = min(50, X_train_flat.shape[1])
+    X_train_selected, X_test_selected, feature_selector = select_features(
+        X_train_flat,
+        y_train,
+        X_test_flat,
+        k=n_features,
+    )
+    X_val_selected = feature_selector.transform(X_val_flat)
     
     # 5. Baseline Models
     print("\n5. Training baseline models...")
